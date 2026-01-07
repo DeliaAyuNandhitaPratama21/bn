@@ -7,25 +7,28 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// =======================
+// USER (NextAuth READY)
+// =======================
 model User {
   id            String   @id @default(cuid())
   name          String?
   email         String?  @unique
-  password      String? 
-  image         String?   // ⬅️ WAJIB UNTUK NEXTAUTH
-  avatar        String?   // ⬅️ OPTIONAL (kalau mau pakai sendiri)
+  password      String?
+  image         String?
+  avatar        String?
   provider      String?
   emailVerified DateTime?
   createdAt     DateTime @default(now())
 
-  accounts      Account[]
-  sessions      Session[]
-
+  accounts  Account[]
+  sessions  Session[]
   emissions Emission[]
-
 }
 
-
+// =======================
+// NEXTAUTH TABLES
+// =======================
 model Account {
   id                String  @id @default(cuid())
   userId            String
@@ -62,13 +65,15 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
+// =======================
+// EMISSION (1 USER = 1 ROW)
+// =======================
 model Emission {
-  id           String   @id @default(cuid())
-  userId       String   @unique
-  totalKarbon  Float
-  detail       Json
-  createdAt    DateTime @default(now())
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  totalKarbon Float
+  detail      Json
+  createdAt   DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
-

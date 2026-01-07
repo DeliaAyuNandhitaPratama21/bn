@@ -1,42 +1,80 @@
 export const runtime = "nodejs"
 
 import { NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/app/api/auth/[...nextauth]/route"
 import { prisma } from "@/lib/prisma"
 
+type EmissionDetail = {
+  produk: string
+  emisi: number
+}
+
 export async function POST(req: Request) {
-  const session = await getServerSession(authOptions)
+  try {
+    const { email, total_karbon, detail } = await req.json()
 
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+    // ==== VALIDASI ====
+    if (
+      !email ||
+      typeof total_karbon !== "number" ||
+      !Array.isArray(detail)
+    ) {
+      return NextResponse.json(
+        { error: "Data tidak valid" },
+        { status: 400 }
+      )
+    }
 
-  const body = await req.json()
-  const userId = session.user.id
+    const safeDetail: EmissionDetail[] = detail.map((d: any) => ({
+      produk: String(d.produk),
+      emisi: Number(d.emisi) || 0,
+    }))
 
-  const existing = await prisma.emission.findUnique({
-    where: { userId },
-  })
+    const user = await prisma.user.findUnique({
+      where: { email },
+    })
 
-  if (!existing) {
-    const created = await prisma.emission.create({
+    if (!user) {
+      return NextResponse.json(
+        { error: "User tidak ditemukan" },
+        { status: 404 }
+      )
+    }
+
+    const existing = await prisma.emission.findUnique({
+      where: { userId: user.id },
+    })
+
+    // ==== INSERT ====
+    if (!existing) {
+      const created = await prisma.emission.create({
+        data: {
+          userId: user.id,
+          totalKarbon: total_karbon,
+          detail: safeDetail,
+        },
+      })
+
+      return NextResponse.json(created)
+    }
+
+    // ==== UPDATE ====
+    const updated = await prisma.emission.update({
+      where: { userId: user.id },
       data: {
-        userId,
-        totalKarbon: body.total_karbon,
-        detail: body.detail,
+        totalKarbon: existing.totalKarbon + total_karbon,
+        detail: [
+          ...(existing.detail as EmissionDetail[]),
+          ...safeDetail,
+        ],
       },
     })
-    return NextResponse.json(created)
+
+    return NextResponse.json(updated)
+  } catch (err) {
+    console.error("EMISSION API ERROR:", err)
+    return NextResponse.json(
+      { error: "Server error" },
+      { status: 500 }
+    )
   }
-
-  const updated = await prisma.emission.update({
-    where: { userId },
-    data: {
-      totalKarbon: existing.totalKarbon + body.total_karbon,
-      detail: [...(existing.detail as any[]), ...body.detail],
-    },
-  })
-
-  return NextResponse.json(updated)
 }

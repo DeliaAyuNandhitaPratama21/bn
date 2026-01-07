@@ -7,20 +7,20 @@ import bcrypt from "bcryptjs"
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
-  secret: process.env.NEXTAUTH_SECRET,
 
+  // ✅ WAJIB database kalau pakai PrismaAdapter
   session: {
-    strategy: "jwt",
+    strategy: "database",
   },
 
   providers: [
-    // ================= GOOGLE LOGIN =================
+    // ================= GOOGLE =================
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
     }),
 
-    // ================= EMAIL & PASSWORD =================
+    // ================= CREDENTIALS =================
     CredentialsProvider({
       name: "Credentials",
       credentials: {
@@ -47,28 +47,27 @@ export const authOptions: NextAuthOptions = {
           id: user.id,
           email: user.email,
           name: user.name,
-          image: user.avatar,
         }
       },
     }),
   ],
 
-  events: {
-    // Jalan saat user pertama kali login Google
-    async createUser({ user }) {
-      await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          provider: "google",
-          avatar: user.image,
-        },
-      })
+  // ================= CALLBACKS =================
+  callbacks: {
+    async session({ session, user }) {
+      if (session.user && user) {
+        // 🔥 INI YANG SEBELUMNYA ERROR → SEKARANG AMAN
+        session.user.id = user.id
+      }
+      return session
     },
   },
 
+  pages: {
+    signIn: "/login",
+  },
 }
 
 const handler = NextAuth(authOptions)
 
 export { handler as GET, handler as POST }
-    
