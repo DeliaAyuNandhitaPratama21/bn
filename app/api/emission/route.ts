@@ -6,13 +6,24 @@ import { prisma } from "@/lib/prisma"
 type EmissionDetail = {
   produk: string
   emisi: number
+  kategori: string
+}
+
+// 🔹 NORMALISASI NAMA PRODUK
+function normalizeProductName(name: string) {
+  return name
+    .trim()
+    .toLowerCase()
+    .split(" ")
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ")
 }
 
 export async function POST(req: Request) {
   try {
-    const { email, total_karbon, detail } = await req.json()
+    const body = await req.json()
+    const { email, total_karbon, detail } = body
 
-    // ==== VALIDASI ====
     if (
       !email ||
       typeof total_karbon !== "number" ||
@@ -25,8 +36,9 @@ export async function POST(req: Request) {
     }
 
     const safeDetail: EmissionDetail[] = detail.map((d: any) => ({
-      produk: String(d.produk),
+      produk: normalizeProductName(String(d.produk)),
       emisi: Number(d.emisi) || 0,
+      kategori: String(d.kategori || "lainnya"),
     }))
 
     const user = await prisma.user.findUnique({
@@ -40,40 +52,19 @@ export async function POST(req: Request) {
       )
     }
 
-    const existing = await prisma.emission.findUnique({
-      where: { userId: user.id },
-    })
-
-    // ==== INSERT ====
-    if (!existing) {
-      const created = await prisma.emission.create({
-        data: {
-          userId: user.id,
-          totalKarbon: total_karbon,
-          detail: safeDetail,
-        },
-      })
-
-      return NextResponse.json(created)
-    }
-
-    // ==== UPDATE ====
-    const updated = await prisma.emission.update({
-      where: { userId: user.id },
+    const created = await prisma.emission.create({
       data: {
-        totalKarbon: existing.totalKarbon + total_karbon,
-        detail: [
-          ...(existing.detail as EmissionDetail[]),
-          ...safeDetail,
-        ],
+        userId: user.id,
+        totalKarbon: total_karbon,
+        detail: safeDetail,
       },
     })
 
-    return NextResponse.json(updated)
-  } catch (err) {
-    console.error("EMISSION API ERROR:", err)
+    return NextResponse.json(created, { status: 201 })
+  } catch (error) {
+    console.error("EMISSION API ERROR:", error)
     return NextResponse.json(
-      { error: "Server error" },
+      { error: "Internal server error" },
       { status: 500 }
     )
   }

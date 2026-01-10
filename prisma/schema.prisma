@@ -66,14 +66,16 @@ model VerificationToken {
 }
 
 // =======================
-// EMISSION (1 USER = 1 ROW)
+// EMISSION (1 USER = MANY ROWS)
 // =======================
 model Emission {
   id          String   @id @default(cuid())
-  userId      String   @unique
+  userId      String
   totalKarbon Float
   detail      Json
   createdAt   DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId]) // ⬅️ BOLEH index, TIDAK UNIQUE
 }
